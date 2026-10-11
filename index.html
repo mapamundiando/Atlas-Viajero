@@ -20,21 +20,21 @@
   --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body:"Instrument Sans", "Segoe UI", system-ui, sans-serif;
   --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
-  --r:10px;
+  --r:10px; --tiles-filter:saturate(.85);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0e171b; --panel:#132026; --ink:#e6eef0; --muted:#97a8ae; --line:#26363d; --soft:#192a31;
     --visit:#2fb39d; --visit-strong:#58d1bb; --ciudad:#f06595; --pueblo:#fcc419; --focus:#74a3ff; --danger:#ff6b6b;
-    --m-avion:#7d93ff; --m-carro:#ff8a4c; --m-bus:#fcc419; --m-moto:#f06595; --m-tren:#a487ff; --m-barco:#4dabf7; --m-bici:#69db7c; --m-pie:#a9e34b;
+    --m-avion:#7d93ff; --m-carro:#ff8a4c; --m-bus:#fcc419; --m-moto:#f06595; --m-tren:#a487ff; --m-barco:#4dabf7; --m-bici:#69db7c; --m-pie:#a9e34b; --tiles-filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0e171b; --panel:#132026; --ink:#e6eef0; --muted:#97a8ae; --line:#26363d; --soft:#192a31;
   --visit:#2fb39d; --visit-strong:#58d1bb; --ciudad:#f06595; --pueblo:#fcc419; --focus:#74a3ff; --danger:#ff6b6b;
-  --m-avion:#7d93ff; --m-carro:#ff8a4c; --m-bus:#fcc419; --m-moto:#f06595; --m-tren:#a487ff; --m-barco:#4dabf7; --m-bici:#69db7c; --m-pie:#a9e34b;
+  --m-avion:#7d93ff; --m-carro:#ff8a4c; --m-bus:#fcc419; --m-moto:#f06595; --m-tren:#a487ff; --m-barco:#4dabf7; --m-bici:#69db7c; --m-pie:#a9e34b; --tiles-filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6);
   color-scheme: dark;
 }
 *{box-sizing:border-box}
@@ -147,6 +147,7 @@ textarea{resize:vertical;min-height:56px}
 .leaflet-tooltip.lbl::before{display:none}
 #mapa:not(.show-lbl) .leaflet-tooltip.lbl{display:none}
 .leaflet-control-attribution{font-size:10px}
+.leaflet-tile-pane{filter:var(--tiles-filter)}
 .pick #mapa{cursor:crosshair}
 .pick .leaflet-interactive{cursor:crosshair}
 
@@ -377,12 +378,11 @@ map.createPane("puntos").style.zIndex = 450;
 const dark = matchMedia("(prefers-color-scheme: dark)");
 let tiles;
 function setTiles() {
-  if (tiles) map.removeLayer(tiles);
-  const theme = document.documentElement.dataset.theme || (dark.matches ? "dark" : "light");
-  const style = theme === "dark" ? "dark_all" : "rastertiles/voyager";
-  tiles = L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, {
-    subdomains: "abcd", maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>'
+  if (tiles) return;
+  // Mapa base de OpenStreetMap: gratuito y sin clave. En modo oscuro se oscurece con un filtro.
+  tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
   }).addTo(map);
 }
 setTiles();
