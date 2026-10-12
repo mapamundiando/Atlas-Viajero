@@ -142,6 +142,8 @@ textarea{resize:vertical;min-height:56px}
 .login .alt{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:14px;justify-self:center}
 .login .warn{font-size:13px;background:var(--soft);border-radius:8px;padding:10px;color:var(--ink)}
 .login .err{color:var(--danger);font-size:13px}
+.login .box.welcome{max-height:calc(100% - 16px);overflow-y:auto;gap:14px}
+.login .box.welcome h2{font-size:28px}
 .login .feat{display:grid;gap:6px;font-size:14px;margin:0;padding:0;list-style:none}
 .login .feat li{display:flex;gap:8px;align-items:center}
 
@@ -274,12 +276,16 @@ textarea{resize:vertical;min-height:56px}
     <section class="view" data-view="cuenta" hidden>
       <div class="card">
         <h2>Colores del mapa</h2>
-        <p class="hint">Elige un color para todas tus ciudades y otro para todos tus pueblos. Se guarda en tu cuenta.</p>
-        <div class="colorrow" data-kind="ciudad">
+        <p class="hint">Elige un color para los países visitados, otro para todas tus ciudades y otro para todos tus pueblos. Se guarda en tu cuenta.</p>
+        <div class="colorrow" data-kind="pais" data-suf="a">
+          <div class="lab"><span class="dot big" style="background:var(--visit)"></span>Países visitados</div>
+          <div class="swatches"></div>
+        </div>
+        <div class="colorrow" data-kind="ciudad" data-suf="a">
           <div class="lab"><span class="dot big" style="background:var(--ciudad)"></span>Ciudades</div>
           <div class="swatches"></div>
         </div>
-        <div class="colorrow" data-kind="pueblo">
+        <div class="colorrow" data-kind="pueblo" data-suf="a">
           <div class="lab"><span class="dot big" style="background:var(--pueblo)"></span>Pueblos</div>
           <div class="swatches"></div>
         </div>
@@ -317,6 +323,27 @@ textarea{resize:vertical;min-height:56px}
     <button class="gbtn" type="button" id="btnGoogle">Continuar con Google</button>
     <div class="err" id="loginErr" hidden></div>
     <button class="alt" type="button" id="btnLocal">Probar sin cuenta</button>
+  </div>
+</div>
+
+<div class="login" id="colorWelcome" hidden>
+  <div class="box welcome" role="dialog" aria-labelledby="cwTitle">
+    <h2 id="cwTitle">Elige los colores de tu mapa</h2>
+    <p>Así se verán tus viajes. Puedes cambiarlos cuando quieras en la pestaña Ajustes.</p>
+    <div class="colorrow" data-kind="pais" data-suf="b">
+          <div class="lab"><span class="dot big" style="background:var(--visit)"></span>Países visitados</div>
+          <div class="swatches"></div>
+        </div>
+    <div class="colorrow" data-kind="ciudad" data-suf="b">
+          <div class="lab"><span class="dot big" style="background:var(--ciudad)"></span>Ciudades</div>
+          <div class="swatches"></div>
+        </div>
+    <div class="colorrow" data-kind="pueblo" data-suf="b">
+          <div class="lab"><span class="dot big" style="background:var(--pueblo)"></span>Pueblos</div>
+          <div class="swatches"></div>
+        </div>
+    <button class="gbtn" type="button" id="btnColorsDone">Listo, ver mi mapa</button>
+    <button class="alt" type="button" id="btnColorsSkip">Usar los colores predeterminados</button>
   </div>
 </div>
 
@@ -388,7 +415,7 @@ function gmRoute(a, b, modo) {
 const S = { places: new Map(), routes: new Map(), manual: new Set(), colores: {} };
 const PRESETS = [
   ["#c2255c", "Magenta"], ["#e03131", "Rojo"], ["#f76707", "Naranja"], ["#e09b0b", "Ámbar"],
-  ["#2f9e44", "Verde"], ["#0c8599", "Turquesa"], ["#1c7ed6", "Azul"], ["#7048e8", "Violeta"], ["#868e96", "Gris"]
+  ["#2f9e44", "Verde"], ["#0f7a6b", "Verde mar"], ["#1c7ed6", "Azul"], ["#7048e8", "Violeta"], ["#868e96", "Gris"]
 ];
 let backend = null;       // objeto con métodos de guardado (nube o local)
 let countriesGeo = null;  // GeoJSON de países
@@ -650,22 +677,32 @@ function renderStamps() {
 /* ---------- colores personalizados ---------- */
 function applyColors() {
   const st = document.documentElement.style;
+  const ok = v => v && /^#[0-9a-f]{6}$/i.test(v);
   for (const k of ["ciudad", "pueblo"]) {
     const v = S.colores?.[k];
-    if (v && /^#[0-9a-f]{6}$/i.test(v)) st.setProperty("--" + k, v); else st.removeProperty("--" + k);
+    if (ok(v)) st.setProperty("--" + k, v); else st.removeProperty("--" + k);
   }
+  const p = S.colores?.pais;
+  if (ok(p)) { st.setProperty("--visit", p); st.setProperty("--visit-strong", darken(p, .72)); }
+  else { st.removeProperty("--visit"); st.removeProperty("--visit-strong"); }
   renderColorUI();
 }
+function darken(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map(x => Math.round(x * f).toString(16).padStart(2, "0"));
+  return "#" + c.join("");
+}
+const COLOR_VAR = { pais: "--visit", ciudad: "--ciudad", pueblo: "--pueblo" };
 function toHex(c) { // convierte cualquier color CSS a #rrggbb para el selector
   const x = document.createElement("canvas").getContext("2d"); x.fillStyle = c; return x.fillStyle;
 }
 function renderColorUI() {
   document.querySelectorAll(".colorrow").forEach(row => {
-    const k = row.dataset.kind, cur = toHex(css("--" + k)).toLowerCase();
+    const k = row.dataset.kind, cur = toHex(css(COLOR_VAR[k])).toLowerCase();
     const box = row.querySelector(".swatches");
     if (!box.childElementCount) {
       box.innerHTML = PRESETS.map(([hex, n]) => `<button type="button" class="swatch" data-color="${hex}" style="background:${hex}" aria-label="${n}" title="${n}"></button>`).join("")
-        + `<label class="pick-color">Otro<input type="color" id="color-${k}"></label>`;
+        + `<label class="pick-color">Otro<input type="color" id="color-${k}-${row.dataset.suf}"></label>`;
       box.addEventListener("click", e => { const b = e.target.closest(".swatch"); if (b) setColor(k, b.dataset.color); });
       const inp = box.querySelector("input");
       inp.addEventListener("input", () => { S.colores = { ...S.colores, [k]: inp.value }; renderAll(); });
@@ -682,6 +719,19 @@ function setColor(k, v) {
   clearTimeout(colorSaveT);
   colorSaveT = setTimeout(() => backend?.setColores(S.colores).catch?.(() => toast("No se pudo guardar el color")), 400);
 }
+function maybeAskColors(yaElegidos) {
+  if (!yaElegidos) { renderColorUI(); document.getElementById("colorWelcome").hidden = false; }
+}
+document.getElementById("btnColorsDone").onclick = async () => {
+  document.getElementById("colorWelcome").hidden = true;
+  clearTimeout(colorSaveT);
+  try { await backend?.setColores(S.colores, true); } catch (e) { toast("No se pudieron guardar los colores"); }
+};
+document.getElementById("btnColorsSkip").onclick = async () => {
+  document.getElementById("colorWelcome").hidden = true;
+  clearTimeout(colorSaveT); S.colores = {}; renderAll();
+  try { await backend?.setColores({}, true); } catch (e) {}
+};
 document.getElementById("btnColorReset").onclick = () => { S.colores = {}; renderAll(); backend?.setColores({}); toast("Colores originales restablecidos"); };
 
 function renderAll() { applyColors(); renderMap(); renderStats(); renderPlaceList(); renderRouteList(); renderStamps(); }
@@ -876,9 +926,9 @@ function readLocal() {
 }
 function makeLocalBackend() {
   const d = readLocal() || { lugares: [], rutas: [], paisesMarcados: [] };
-  S.places = new Map(d.lugares.map(p => [p.id, p])); S.routes = new Map(d.rutas.map(r => [r.id, r])); S.manual = new Set(d.paisesMarcados); S.colores = d.colores || {};
+  S.places = new Map(d.lugares.map(p => [p.id, p])); S.routes = new Map(d.rutas.map(r => [r.id, r])); S.manual = new Set(d.paisesMarcados); S.colores = d.colores || {}; let elegidos = !!d.coloresElegidos;
   const save = () => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ lugares: [...S.places.values()], rutas: [...S.routes.values()], paisesMarcados: [...S.manual], colores: S.colores })); }
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ lugares: [...S.places.values()], rutas: [...S.routes.values()], paisesMarcados: [...S.manual], colores: S.colores, coloresElegidos: elegidos })); }
     catch (e) { toast("Este navegador no permite guardar datos. Descarga una copia para no perderlos."); }
     renderAll();
   };
@@ -889,7 +939,8 @@ function makeLocalBackend() {
     addRoute: async r => { S.routes.set(r.id, r); save(); },
     delRoute: async id => { S.routes.delete(id); save(); },
     setManual: async arr => { S.manual = new Set(arr); save(); },
-    setColores: async c => { S.colores = c; save(); }
+    setColores: async (c, fin) => { S.colores = c; if (fin) elegidos = true; save(); },
+    askColorsIfNew: () => maybeAskColors(elegidos)
   };
 }
 
@@ -909,12 +960,17 @@ function makeCloudBackend(user) {
   const { fs, db } = fb;
   const col = name => fs.collection(db, "usuarios", user.uid, name);
   const userDoc = fs.doc(db, "usuarios", user.uid);
-  let first = { l: false, r: false };
+  let first = { l: false, r: false }, askedColors = false;
   let offered = false;
   const ready = () => { if (first.l && first.r) { renderAll(); if (!offered) { offered = true; offerMigration(); } } };
   unsubs.push(fs.onSnapshot(col("lugares"), snap => { S.places = new Map(snap.docs.map(d => [d.id, d.data()])); first.l = true; ready(); }, onCloudError));
   unsubs.push(fs.onSnapshot(col("rutas"), snap => { S.routes = new Map(snap.docs.map(d => [d.id, d.data()])); first.r = true; ready(); }, onCloudError));
-  unsubs.push(fs.onSnapshot(userDoc, snap => { S.manual = new Set(snap.data()?.paisesMarcados || []); S.colores = snap.data()?.colores || {}; if (first.l && first.r) renderAll(); else applyColors(); }, onCloudError));
+  unsubs.push(fs.onSnapshot(userDoc, { includeMetadataChanges: true }, snap => {
+    const d = snap.data() || {};
+    S.manual = new Set(d.paisesMarcados || []); S.colores = d.colores || {};
+    if (first.l && first.r) renderAll(); else applyColors();
+    if (!askedColors && !snap.metadata?.fromCache) { askedColors = true; maybeAskColors(!!d.coloresElegidos); }
+  }, onCloudError));
   fs.setDoc(userDoc, { nombre: user.displayName || "", ultimoIngreso: Date.now() }, { merge: true }).catch(() => {});
   return {
     kind: "cloud",
@@ -923,7 +979,9 @@ function makeCloudBackend(user) {
     addRoute: r => fs.setDoc(fs.doc(col("rutas"), r.id), r),
     delRoute: id => fs.deleteDoc(fs.doc(col("rutas"), id)),
     setManual: arr => fs.setDoc(userDoc, { paisesMarcados: arr }, { merge: true }),
-    setColores: c => fs.setDoc(userDoc, { colores: c }, { mergeFields: ["colores"] })
+    setColores: (c, fin) => fin
+      ? fs.setDoc(userDoc, { colores: c, coloresElegidos: true }, { mergeFields: ["colores", "coloresElegidos"] })
+      : fs.setDoc(userDoc, { colores: c }, { mergeFields: ["colores"] })
   };
 }
 let unsubs = [];
@@ -988,7 +1046,7 @@ $("#btnGoogle").onclick = async () => {
 };
 $("#btnLocal").onclick = () => {
   $("#login").hidden = true;
-  if (backend?.kind !== "local") { backend = makeLocalBackend(); renderAll(); renderAccount(null); }
+  if (backend?.kind !== "local") { backend = makeLocalBackend(); renderAll(); renderAccount(null); backend.askColorsIfNew(); }
 };
 
 async function start() {
